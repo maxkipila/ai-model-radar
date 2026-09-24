@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI models on GitHub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="viz-root">
+    <header>
+      <h1>AI models on GitHub</h1>
+      <div class="filters">
+        <div class="seg" id="mode" role="group" aria-label="Repositories"></div>
+        <div class="seg" id="view" role="group" aria-label="Group by"></div>
+      </div>
+    </header>
+    <div class="filters sub" id="tool-row">
+      <div class="seg" id="tool" role="group" aria-label="Tool"></div>
+    </div>
+
+    <section class="tiles" id="tiles" aria-label="Last 4 weeks"></section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Last 4 weeks</h2>
+        <span class="muted" id="board-period"></span>
+      </div>
+      <div class="board" id="board" role="table"></div>
+      <p class="muted" id="board-note"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>History</h2>
+        <div class="filters">
+          <div class="seg" id="measure" role="group" aria-label="Measure"></div>
+          <div class="seg" id="range" role="group" aria-label="Range"></div>
+        </div>
+      </div>
+      <ul class="legend" id="legend"></ul>
+      <div class="chart" id="chart"></div>
+      <details>
+        <summary>Table</summary>
+        <div class="table-wrap"><table id="table"></table></div>
+      </details>
+    </section>
+
+    <footer class="muted" id="footer"></footer>
+  </main>
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

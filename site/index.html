@@ -4,50 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI models on GitHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="viz-root">
-    <header>
-      <h1>AI models on GitHub</h1>
-      <div class="filters">
-        <div class="seg" id="mode" role="group" aria-label="Repositories"></div>
-        <div class="seg" id="view" role="group" aria-label="Group by"></div>
+  <div class="page">
+    <header class="top">
+      <div>
+        <h1>AI models on GitHub</h1>
+        <p class="scope" id="scope"></p>
       </div>
+      <div class="seg" id="mode" role="group" aria-label="Repositories"></div>
     </header>
-    <div class="filters sub" id="tool-row">
-      <div class="seg" id="tool" role="group" aria-label="Tool"></div>
-    </div>
 
-    <section class="tiles" id="tiles" aria-label="Last 4 weeks"></section>
+    <section class="figures" id="figures" aria-label="Last 4 weeks"></section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Last 4 weeks</h2>
-        <span class="muted" id="board-period"></span>
+    <nav class="tabs" id="view" role="tablist" aria-label="Group by"></nav>
+    <div class="chips" id="tool" role="group" aria-label="Tool"></div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Ranking</h2>
+        <span class="period" id="period"></span>
       </div>
-      <div class="board" id="board" role="table"></div>
-      <p class="muted" id="board-note"></p>
+      <div class="board" id="board" role="table" aria-label="Ranking"></div>
+      <p class="note" id="note"></p>
     </section>
 
-    <section class="card">
-      <div class="card-head">
+    <section class="panel">
+      <div class="panel-head">
         <h2>History</h2>
-        <div class="filters">
-          <div class="seg" id="measure" role="group" aria-label="Measure"></div>
-          <div class="seg" id="range" role="group" aria-label="Range"></div>
+        <div class="controls">
+          <div class="seg small" id="measure" role="group" aria-label="Measure"></div>
+          <div class="seg small" id="range" role="group" aria-label="Range"></div>
         </div>
       </div>
       <ul class="legend" id="legend"></ul>
       <div class="chart" id="chart"></div>
-      <details>
+      <details class="more">
         <summary>Table</summary>
         <div class="table-wrap"><table id="table"></table></div>
       </details>
     </section>
 
-    <footer class="muted" id="footer"></footer>
-  </main>
+    <details class="panel method">
+      <summary><h2>How it's measured</h2></summary>
+      <ul>
+        <li>An AI coding tool leaves a trace in the commit: its signature (<code>Co-authored-by: Claude Opus 5</code>), or a line the author writes on purpose (<code>Assisted-by: Codex (GPT-5)</code>, <code>Model: GPT-6. Harness: Codex.</code> in the pull request).</li>
+        <li><b>Big projects</b>: every active public repository with 10,000+ stars that contains code. Every commit on the default branch is read, with the description of its pull request. Bots other than AI agents are left out.</li>
+        <li><b>All public</b>: GitHub commit search over all public repositories, estimated from samples.</li>
+        <li>Models are compared only within one tool: Claude Code always names the model, Codex only when the author does, Cursor and Copilot never.</li>
+        <li>Labs are compared only in projects that disclose AI use on purpose, where tools that do not sign are visible too.</li>
+        <li>Every figure covers four complete weeks. Lines: median lines changed per commit. Reverted: share of commits reverted later.</li>
+      </ul>
+    </details>
+
+    <footer class="foot" id="footer"></footer>
+  </div>
   <div class="tooltip" id="tooltip" role="status" hidden></div>
   <script src="data.js"></script>
   <script src="app.js"></script>

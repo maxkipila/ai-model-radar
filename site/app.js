@@ -83,17 +83,24 @@
       .map(([id]) => id);
   }
 
-  // Colors follow the entity: fixed from the combined volume of both modes, never
+  // Colors follow the entity: fixed from its share of all data or of the last TRAIL
+  // days, whichever is larger, in either mode (so a new model gets its own line), never
   // from the current mode, measure or period.
   const slotCache = new Map();
   function slots() {
     const key = `${state.view}|${state.view === "models" ? state.tool : ""}`;
     if (!slotCache.has(key)) {
-      const totals = new Map();
+      const scores = new Map();
       for (const m of ["big", "public"]) {
-        for (const [k, arr] of seriesOf(m)) totals.set(k, (totals.get(k) ?? 0) + sum(arr));
+        const series = [...seriesOf(m)];
+        const all = sum(series.map(([, arr]) => sum(arr))) || 1;
+        const last = sum(series.map(([, arr]) => sum(arr.slice(N - TRAIL)))) || 1;
+        for (const [k, arr] of series) {
+          const score = Math.max(sum(arr) / all, sum(arr.slice(N - TRAIL)) / last);
+          scores.set(k, Math.max(scores.get(k) ?? 0, score));
+        }
       }
-      const ranked = [...totals].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+      const ranked = [...scores].sort((a, b) => b[1] - a[1]).map(([k]) => k);
       slotCache.set(key, new Map(ranked.slice(0, TOP).map((k, i) => [k, i])));
     }
     return slotCache.get(key);

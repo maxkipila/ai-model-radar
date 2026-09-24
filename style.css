@@ -66,13 +66,15 @@ h2 { font-size: 16px; font-weight: 600; margin: 0; }
   display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 1px;
   background: var(--hairline); border: 1px solid var(--hairline); border-radius: 12px; margin-bottom: 28px; overflow: hidden;
 }
-.figure { padding: 18px 20px; background: var(--surface); min-width: 0; }
-.figure .value { font-size: 26px; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.figure { padding: 14px 18px; background: var(--surface); min-width: 0; }
+.figure .value { font-size: 21px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .figure .label { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
 .figure .sub { color: var(--muted); font-size: 12.5px; }
 
-/* ---------- view tabs and tool chips ---------- */
-.tabs { display: flex; gap: 26px; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+/* ---------- view tabs, period and tool chips ---------- */
+.bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+.bar .seg { margin-bottom: 8px; }
+.tabs { display: flex; gap: 26px; }
 .tabs button {
   font: inherit; font-size: 15px; font-weight: 500; color: var(--muted); background: none; border: 0;
   padding: 0 0 10px; margin-bottom: -1px; border-bottom: 2px solid transparent; cursor: pointer;
@@ -91,6 +93,7 @@ h2 { font-size: 16px; font-weight: 600; margin: 0; }
 /* ---------- panels ---------- */
 .panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; }
 .panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.hero h2 { font-size: 19px; }
 .period { color: var(--muted); font-size: 13px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .note { color: var(--muted); font-size: 12.5px; margin: 12px 0 0; }

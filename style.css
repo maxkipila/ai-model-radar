@@ -78,7 +78,7 @@ header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify
   display: grid; grid-template-columns: 22px minmax(140px, 230px) 1fr 60px 64px;
   gap: 10px; align-items: center; padding: 5px 0;
 }
-.board.big .row { grid-template-columns: 22px minmax(140px, 230px) 1fr 60px 64px 64px 56px 68px; }
+.board.big .row { grid-template-columns: 22px minmax(140px, 230px) 1fr 64px 60px 64px 56px 68px; }
 .board .row.head { color: var(--muted); font-size: 12px; padding-bottom: 2px; }
 .board .row.item { cursor: default; border-radius: 6px; }
 .board.big .row.item { cursor: pointer; }

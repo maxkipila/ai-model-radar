@@ -6,7 +6,7 @@
   const TOP = 7; // colored series; the rest fold into Other
   const DAY = 864e5;
   const toolById = Object.fromEntries(D.tools.map((t) => [t.id, t]));
-  const state = { mode: "big", view: "tools", tool: "claude-code", measure: "share", range: "all" };
+  const state = { mode: "big", view: "tools", tool: "claude-code", measure: "projects", range: "all" };
   // The view lives in the address (#public/models/codex/share/all), so a reload keeps it.
   const KEYS = Object.keys(state);
   location.hash.slice(1).split("/").forEach((v, i) => v && KEYS[i] && (state[KEYS[i]] = decodeURIComponent(v)));
@@ -23,6 +23,23 @@
     return new Map(Object.entries(src).filter(([key]) => key !== "~"));
   }
   const notStated = () => D[state.mode].series.models[state.tool]?.["~"];
+
+  // Big projects rank by how many projects use a tool or model, so one very active
+  // project cannot decide the ranking. The counts cover the same rolling window.
+  function usedOf(view = state.view, tool = state.tool) {
+    const u = D.big.used;
+    const src = view === "models" ? u.models[tool] ?? {} : u[view] ?? {};
+    return new Map(Object.entries(src).filter(([key]) => key !== "~"));
+  }
+  // Projects a count is out of: active projects, projects using the tool, or
+  // active projects that disclose AI use.
+  function usedBase(view = state.view, tool = state.tool) {
+    const u = D.big.used;
+    const base = view === "tools" ? u.all : view === "models" ? u.tools[tool] : u.declaring;
+    return base ?? new Array(W).fill(0);
+  }
+  const baseLabel = (view = state.view, tool = state.tool) =>
+    view === "tools" ? "active projects" : view === "models" ? `${toolById[tool]?.name ?? tool} projects` : "disclosing projects";
   const windowStats = (key) => {
     const w = D[state.mode].window;
     if (!w) return null;
@@ -111,19 +128,27 @@
     $("tool-row").hidden = state.view !== "models";
     segmented("tool", tools.map((id) => [id, toolById[id]?.name ?? id]), "tool");
     const measures = [["share", "Share"], ["commits", "Commits"]];
+    if (state.mode === "big") measures.unshift(["projects", "Projects"]);
     if (state.mode === "big" && state.view === "tools") measures.push(["all", "Of all commits"]);
-    if (!measures.some(([v]) => v === state.measure)) state.measure = "share";
+    if (!measures.some(([v]) => v === state.measure)) state.measure = measures[0][0];
     segmented("measure", measures, "measure");
     segmented("range", [["13", "3M"], ["26", "6M"], ["52", "1Y"], ["all", "All"]], "range");
   }
 
   // ---------- tiles ----------
   function leader(mode, view, tool) {
+    const label = (key) => (view === "tools" ? toolById[key]?.name ?? key : key);
+    if (mode === "big") {
+      const rows = [...usedOf(view, tool)].map(([k, a]) => [k, a[W - 1]]).sort((a, b) => b[1] - a[1]);
+      const base = usedBase(view, tool)[W - 1];
+      if (!rows.length || !base) return ["–", ""];
+      return [label(rows[0][0]), `in ${fmtShare(rows[0][1] / base)} of ${baseLabel(view, tool)}`];
+    }
     const rows = [...seriesOf(mode, view, tool)].map(([k, a]) => [k, lastWindow(a)]).sort((a, b) => b[1] - a[1]);
     const total = sum(rows.map(([, v]) => v));
     if (!rows.length || !total) return ["–", ""];
     const [key, value] = rows[0];
-    return [view === "tools" ? toolById[key]?.name ?? key : key, `${fmtShare(value / total)} share`];
+    return [label(key), `${fmtShare(value / total)} share`];
   }
   function renderTiles() {
     const m = state.mode;
@@ -133,8 +158,10 @@
       const b = D.big;
       const ai = lastWindow(b.ai);
       const total = lastWindow(b.total);
+      const using = b.used.ai?.[W - 1] ?? 0;
+      const active = b.used.all?.[W - 1] ?? 0;
       tiles.push(["AI share of commits", total ? fmtShare(ai / total) : "–", `${fmtCount(ai)} of ${fmtCount(total)} commits`]);
-      tiles.push(["Projects using AI", String(b.window?.ai?.p ?? 0), `of ${b.active} active projects`]);
+      tiles.push(["Projects using AI", active ? fmtShare(using / active) : "–", `${using.toLocaleString("en-US")} of ${active.toLocaleString("en-US")} active projects`]);
     } else {
       const tools = [...seriesOf(m, "tools")].map(([, a]) => a);
       const total = sum(tools.map((a) => lastWindow(a)));
@@ -143,7 +170,7 @@
       tiles.push(["AI-signed commits", fmtCount(total), prior ? `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(0)}% vs prior 4 weeks` : ""]);
     }
     tiles.push(["Top tool", ...leader(m, "tools")]);
-    if (m === "public" && topTool) tiles.push([`Top model · ${toolById[topTool]?.name ?? topTool}`, ...leader(m, "models", topTool)]);
+    if (topTool) tiles.push([`Top model · ${toolById[topTool]?.name ?? topTool}`, ...leader(m, "models", topTool)]);
     if (m === "big") tiles.push(["Top lab", ...leader(m, "labs")]);
     $("tiles").replaceChildren(...tiles.map(([label, value, sub]) =>
       el("div", { class: "tile" }, el("div", { class: "label" }, label), el("div", { class: "value" }, value), el("div", { class: "sub" }, sub))));
@@ -162,15 +189,20 @@
     const big = state.mode === "big";
     const board = $("board");
     board.className = `board${big ? " big" : ""}`;
-    const rows = [...seriesOf()].map(([key, a]) => ({ key, value: lastWindow(a) })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+    const used = big ? usedOf() : new Map();
+    const rows = [...seriesOf()]
+      .map(([key, a]) => ({ key, value: lastWindow(a), projects: used.get(key)?.[W - 1] ?? 0 }))
+      .filter((r) => r.value > 0)
+      .sort((a, b) => (big ? b.projects - a.projects : 0) || b.value - a.value);
     const total = sum(rows.map((r) => r.value));
     const shown = rows.slice(0, 15);
-    const max = shown[0]?.value ?? 1;
+    const rank = (r) => (big ? r.projects : r.value);
+    const max = Math.max(1, ...shown.map(rank));
     const head = el("div", { class: "row head", role: "row" }, el("span"), el("span"), el("span"),
+      ...(big ? [el("span", { class: "num" }, "Projects")] : []),
       el("span", { class: "num" }, "Share"), el("span", { class: "num" }, "Commits"),
-      ...(big ? [el("span", { class: "num" }, "Projects"), el("span", { class: "num" }, "Lines"), el("span", { class: "num" }, "Reverted")] : []));
-    const extra = (st) => (big ? [
-      el("span", { class: "dim" }, st ? String(st.p) : ""),
+      ...(big ? [el("span", { class: "num" }, "Lines"), el("span", { class: "num" }, "Reverted")] : []));
+    const quality = (st) => (big ? [
       el("span", { class: "dim" }, st ? fmtCount(st.ml) : ""),
       el("span", { class: "dim" }, st ? fmtShare(st.rv) : ""),
     ] : []);
@@ -180,8 +212,9 @@
       const name = el("div", { class: "name" }, el("span", {}, nameOf(r.key)), labOf(r.key) ? el("span", { class: "lab" }, labOf(r.key)) : null);
       const row = el("div", { class: "row item", role: "row", tabindex: big ? 0 : -1 },
         el("span", { class: "rank" }, String(i + 1)), name,
-        el("div", { class: "track" }, el("div", { class: "bar", style: { width: `${(r.value / max) * 100}%`, background: colorOf(groupOf(r.key)) } })),
-        el("span", { class: "num" }, fmtShare(r.value / total)), el("span", { class: "dim" }, fmtCount(r.value)), ...extra(st));
+        el("div", { class: "track" }, el("div", { class: "bar", style: { width: `${(rank(r) / max) * 100}%`, background: colorOf(groupOf(r.key)) } })),
+        ...(big ? [el("span", { class: "num" }, r.projects.toLocaleString("en-US"))] : []),
+        el("span", { class: big ? "dim" : "num" }, fmtShare(r.value / total)), el("span", { class: "dim" }, fmtCount(r.value)), ...quality(st));
       items.push(row);
       if (big && st) {
         const id = `${state.view}|${state.tool}|${r.key}`;
@@ -197,41 +230,48 @@
     if (big && state.view === "tools") {
       for (const [key, label] of [["ai", "All AI"], ["none", "Without AI"]]) {
         const st = D.big.window?.[key];
-        if (st) items.push(el("div", { class: "row base", role: "row" }, el("span"), el("span", {}, label), el("span"), el("span"),
-          el("span", { class: "dim" }, fmtCount(st.c)), ...extra(st)));
+        if (st) items.push(el("div", { class: "row base", role: "row" }, el("span"), el("span", {}, label), el("span"),
+          el("span", { class: "num" }, st.p.toLocaleString("en-US")), el("span"),
+          el("span", { class: "dim" }, fmtCount(st.c)), ...quality(st)));
       }
     }
     board.replaceChildren(head, ...items);
     $("board-period").textContent = spanLabel(W - 1);
 
     const notes = [];
-    if (rows.length > shown.length) notes.push(`+${rows.length - shown.length} more · ${fmtShare(sum(rows.slice(shown.length).map((r) => r.value)) / total)}`);
+    if (big) notes.push(`Projects out of ${usedBase()[W - 1].toLocaleString("en-US")} ${baseLabel()}`);
+    if (rows.length > shown.length) notes.push(`+${rows.length - shown.length} more · ${fmtShare(sum(rows.slice(shown.length).map((r) => r.value)) / total)} of commits`);
     if (state.view === "models") {
       const unnamed = lastWindow(notStated());
       if (unnamed) notes.push(`Model not stated: ${fmtShare(unnamed / (unnamed + total))} of ${toolById[state.tool]?.name ?? state.tool} commits`);
     }
-    if (state.view === "labs" && big) notes.push(`${D.big.declaringProjects} projects that disclose models`);
     $("board-note").textContent = notes.join(" · ");
   }
 
   // ---------- history ----------
   function chartData() {
+    const byProjects = state.measure === "projects";
     const members = new Map();
     const groups = new Map();
-    for (const [key, arr] of seriesOf()) {
-      const rolled = roll(arr);
+    for (const [key, arr] of byProjects ? usedOf() : seriesOf()) {
+      const values = byProjects ? arr : roll(arr);
       const g = groupOf(key);
-      members.set(key, { group: g, values: rolled });
+      members.set(key, { group: g, values });
+      if (byProjects && g === "Other") continue; // distinct projects do not add up
       const t = groups.get(g) ?? new Array(W).fill(0);
-      rolled.forEach((v, i) => (t[i] += v));
+      values.forEach((v, i) => (t[i] += v));
       groups.set(g, t);
     }
     const order = [...slots().keys(), "Other"].filter((g) => groups.has(g));
-    const totals = new Array(W).fill(0);
+    let totals = new Array(W).fill(0);
     for (const arr of groups.values()) arr.forEach((v, i) => (totals[i] += v));
+    if (byProjects) totals = usedBase();
     const all = state.measure === "all" ? roll(D.big.total) : null;
-    // The first points would cover fewer than WINDOW weeks.
-    const first = Math.max(WINDOW - 1, totals.findIndex((v) => v > 0));
+    // The first points would cover fewer than WINDOW weeks of data.
+    const weekly = state.mode === "big"
+      ? D.big.total
+      : Object.values(D.public.series.tools).reduce((acc, a) => acc.map((v, i) => v + a[i]), new Array(W).fill(0));
+    const first = Math.max(0, weekly.findIndex((v) => v > 0)) + WINDOW - 1;
     const start = state.range === "all" ? first : Math.max(first, W - Number(state.range));
     const series = order.map((g) => ({ group: g, values: groups.get(g) })).filter((s) => s.values.slice(start).some((v) => v > 0));
     return { series, members, totals, all, start };

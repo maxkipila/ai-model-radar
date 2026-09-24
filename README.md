@@ -66,3 +66,9 @@ without AI as the baseline.
 - The panel is the projects that are big and active today.
 - Squash merges without the trailers and pull requests without a description leave
   no trace, whatever tool wrote them.
+
+## Publish
+
+`node publish.mjs` pushes the `site/` folder alone to the public repository
+`maxkipila/ai-model-radar`, served by GitHub Pages at
+https://maxkipila.github.io/ai-model-radar/. The code and `data/` stay local.

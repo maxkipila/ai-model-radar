@@ -101,6 +101,9 @@ class Stats {
 
 function buildBig(weeks, weekOf, modelLabs) {
   const dir = new URL("data/big/", root);
+  // Commits before the latest run's start exist only for the projects read by an
+  // earlier, longer run, so they would undercount those weeks.
+  const since = readJson(new URL("meta.json", dir), {}).since ?? "";
   const panel = readGz(new URL("panel.json.gz", dir), { items: [] }).items.filter(inPanel);
   const s = series(weeks);
   const zeros = () => new Array(weeks.length).fill(0);
@@ -112,8 +115,15 @@ function buildBig(weeks, weekOf, modelLabs) {
   let active = 0;
   let declaringProjects = 0;
   let read = 0;
+  // Which projects were seen per key and week, for "used in N projects" over time.
+  const seenIn = new Map();
+  const mark = (key, w, r) => {
+    let byWeek = seenIn.get(key);
+    if (!byWeek) seenIn.set(key, (byWeek = weeks.map(() => new Set())));
+    byWeek[w].add(r);
+  };
 
-  for (const { full_name: repo } of panel) {
+  for (const [r, { full_name: repo }] of panel.entries()) {
     const data = readGz(repoFile(dir, repo));
     if (!data) continue;
     read++;
@@ -126,7 +136,7 @@ function buildBig(weeks, weekOf, modelLabs) {
     if (declaring) declaringProjects++;
     let seen = false;
     for (const { c, entries } of commits) {
-      const w = weekOf(c.date.slice(0, 10));
+      const w = c.date < since ? -1 : weekOf(c.date.slice(0, 10));
       if (w < 0) continue;
       const inWindow = w >= windowStart;
       // Line counts exist for every commit with a trace of AI and for a fixed sample of
@@ -136,6 +146,8 @@ function buildBig(weeks, weekOf, modelLabs) {
         inWindow && stat(key).add(repo, c.oid.slice(0, 12), baseline && !inSample(c.oid) ? null : size, isReverted(c.oid), weight);
       total[w]++;
       record("all", 1, true);
+      mark("all", w, r);
+      if (declaring) mark("declaring", w, r);
       if (inWindow) seen = true;
       if (!entries.length) {
         record("none", 1, true);
@@ -143,19 +155,23 @@ function buildBig(weeks, weekOf, modelLabs) {
       }
       ai[w]++;
       record("ai");
+      mark("ai", w, r);
       for (const e of entries) if (e.model) modelLabs[e.model] = e.lab;
       const v = views(entries, { labs: declaring });
       for (const tool of v.tools) {
         s.tool(tool, w, 1);
         record(`tools|${tool}`);
+        mark(`tools|${tool}`, w, r);
       }
       for (const [tool, model, weight] of v.models) {
         s.model(tool, model, w, weight);
         record(`models|${tool}|${model ?? "~"}`, weight);
+        mark(`models|${tool}|${model ?? "~"}`, w, r);
       }
       for (const [lab, weight] of v.labs) {
         s.lab(lab, w, weight);
         record(`labs|${lab}`, weight);
+        mark(`labs|${lab}`, w, r);
       }
     }
     if (seen) active++;
@@ -171,8 +187,18 @@ function buildBig(weeks, weekOf, modelLabs) {
     else if (view === "labs") window.labs[a] = value;
     else window[view] = value;
   }
+  // Distinct projects over the same rolling window as every other figure.
+  const projects = { tools: {}, models: {}, labs: {} };
+  for (const [key, byWeek] of seenIn) {
+    const rolled = byWeek.map((_, i) => new Set(byWeek.slice(Math.max(0, i - WINDOW + 1), i + 1).flatMap((set) => [...set])).size);
+    const [view, a, b] = key.split("|");
+    if (view === "tools") projects.tools[a] = rolled;
+    else if (view === "models") (projects.models[a] ??= {})[b] = rolled;
+    else if (view === "labs") projects.labs[a] = rolled;
+    else projects[view] = rolled;
+  }
   console.log(`big: ${read}/${panel.length} projects read, ${active} active in the last ${WINDOW} weeks, ${declaringProjects} disclose models`);
-  return { projects: read, panel: panel.length, active, declaringProjects, total, ai, series: s.out, window };
+  return { projects: read, panel: panel.length, active, declaringProjects, total, ai, series: s.out, window, used: projects };
 }
 
 function buildPublic(weeks, weekOf, modelLabs) {
